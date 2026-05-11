@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    container_name: daily-report
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data        # RAG 数据持久化
+    ports:
+      - "8000:8000"             # 直接暴露，或配合 nginx 使用
+
+  # 生产环境推荐：Nginx 反向代理 + HTTPS
+  nginx:
+    image: nginx:alpine
+    container_name: daily-report-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro   # SSL 证书目录
+    depends_on:
+      - app
+    profiles:
+      - prod    # 仅在 --profile prod 时启动

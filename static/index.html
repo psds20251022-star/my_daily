@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>日报生成器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0f0f11;--bg2:#16161a;--bg3:#1e1e24;--border:#2a2a32;--border2:#363640;--text:#e8e8f0;--text2:#8888a0;--text3:#55556a;--accent:#7c6fef;--accent2:#a594f9;--green:#34d399;--yellow:#fbbf24;--red:#f87171;--r:10px;--rs:6px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;}
+.app{display:flex;height:calc(100vh - 44px);overflow:hidden;}
+/* ── Model bar ── */
+.model-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:.5rem 1.25rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;height:44px;}
+.model-bar label{font-size:11px;color:var(--text3);white-space:nowrap;font-family:'DM Mono',monospace;}
+.bar-select,.apikey-input{font-size:12px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'DM Mono',monospace;}
+.bar-select{cursor:pointer;}
+.bar-select:focus,.apikey-input:focus{outline:none;border-color:var(--accent);}
+.apikey-input{flex:1;min-width:160px;}
+.bar-btn{font-size:11px;padding:4px 10px;border:1px solid var(--border2);border-radius:var(--rs);background:transparent;color:var(--text2);cursor:pointer;font-family:'Noto Sans SC',sans-serif;white-space:nowrap;}
+.bar-btn:hover{color:var(--text);}
+.key-ok{font-size:10px;color:var(--green);}
+.key-no{font-size:10px;color:var(--red);}
+/* ── Sidebar ── */
+.sidebar{width:270px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg2);}
+.sb-top{padding:1rem 1.25rem 0;}
+.sb-logo{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--accent2);text-transform:uppercase;margin-bottom:.75rem;}
+.sb-tabs{display:flex;gap:3px;background:var(--bg3);border-radius:var(--rs);padding:3px;margin-bottom:.75rem;}
+.sb-tab{flex:1;font-size:12px;padding:5px 0;border:none;border-radius:4px;background:transparent;color:var(--text2);cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:all .15s;}
+.sb-tab.on{background:var(--accent);color:#fff;}
+.sb-tab:hover:not(.on){color:var(--text);}
+.sb-body{flex:1;overflow-y:auto;padding:.5rem 1.25rem 1.25rem;}
+.sb-body::-webkit-scrollbar{width:4px;}
+.sb-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+/* ── Import pane ── */
+.import-ta{width:100%;height:140px;resize:none;font-family:'DM Mono',monospace;font-size:11px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);line-height:1.6;}
+.import-ta:focus{outline:none;border-color:var(--accent);}
+.parse-btn{width:100%;margin-top:7px;padding:7px;font-size:12px;font-weight:500;border:none;border-radius:var(--rs);background:var(--accent);color:#fff;cursor:pointer;font-family:'Noto Sans SC',sans-serif;}
+.parse-btn:hover{opacity:.85;}
+.parse-result{font-size:11px;color:var(--green);margin-top:6px;line-height:1.5;}
+.stat-row{display:flex;gap:6px;margin-top:10px;}
+.stat-box{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:7px;text-align:center;}
+.stat-n{font-size:20px;font-weight:600;color:var(--accent2);font-family:'DM Mono',monospace;}
+.stat-l{font-size:10px;color:var(--text2);}
+/* ── Library pane ── */
+.lib-search{width:100%;font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);margin-bottom:8px;font-family:'Noto Sans SC',sans-serif;}
+.lib-search:focus{outline:none;border-color:var(--accent);}
+.proj-label{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--text3);text-transform:uppercase;margin:8px 0 4px;}
+.doc-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:7px 9px;margin-bottom:4px;cursor:pointer;transition:border-color .15s;}
+.doc-card:hover{border-color:var(--border2);}
+.doc-card.open{border-color:var(--accent);}
+.doc-name{font-size:12px;line-height:1.4;word-break:break-all;}
+.doc-meta{font-size:10px;color:var(--text3);margin-top:2px;}
+.doc-desc{display:none;font-size:11px;color:var(--text2);margin-top:6px;line-height:1.6;white-space:pre-wrap;border-top:1px solid var(--border);padding-top:6px;font-family:'DM Mono',monospace;}
+.doc-card.open .doc-desc{display:block;}
+.doc-actions{display:flex;gap:4px;margin-top:6px;justify-content:flex-end;}
+.mini-btn{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:'Noto Sans SC',sans-serif;}
+.mini-btn:hover{color:var(--text);}
+.mini-btn.danger:hover{color:var(--red);}
+.edit-ta{width:100%;font-size:11px;padding:5px 7px;border:1px solid var(--accent);border-radius:4px;background:var(--bg2);color:var(--text);resize:vertical;font-family:'DM Mono',monospace;line-height:1.6;margin-top:4px;}
+.edit-ta:focus{outline:none;}
+/* ── Retrieval pane ── */
+.ret-hint{font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:7px;}
+.ret-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;margin-bottom:7px;}
+.ret-query{font-size:10px;color:var(--text3);margin-bottom:4px;font-family:'DM Mono',monospace;}
+.ret-match{font-size:12px;font-weight:500;}
+.ret-score{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-left:4px;}
+.score-bar{height:2px;background:var(--border);border-radius:2px;margin-top:3px;overflow:hidden;}
+.score-fill{height:100%;background:var(--green);border-radius:2px;}
+.ret-desc{font-size:11px;color:var(--text2);margin-top:5px;line-height:1.5;white-space:pre-wrap;border-top:1px solid var(--border);padding-top:5px;font-family:'DM Mono',monospace;}
+/* ── Main ── */
+.main{flex:1;overflow-y:auto;padding:1.5rem 2rem 4rem;}
+.main::-webkit-scrollbar{width:5px;}
+.main::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+.page-title{font-size:20px;font-weight:600;margin-bottom:3px;}
+.page-sub{font-size:12px;color:var(--text2);margin-bottom:1.5rem;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1.1rem;margin-bottom:.85rem;}
+.dashed{border-style:dashed;background:var(--bg);}
+.label{font-size:11px;font-weight:600;letter-spacing:.05em;color:var(--text2);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:400;text-transform:none;letter-spacing:0;}
+.badge-a{background:rgba(124,111,239,.18);color:var(--accent2);}
+.badge-y{background:rgba(251,191,36,.12);color:var(--yellow);}
+.rag-badge{display:none;align-items:center;font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(52,211,153,.12);color:var(--green);font-weight:400;text-transform:none;letter-spacing:0;}
+.full-ta{width:100%;resize:vertical;font-family:'Noto Sans SC',sans-serif;font-size:13px;padding:9px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);line-height:1.7;}
+.full-ta:focus{outline:none;border-color:var(--accent);}
+.mono{font-family:'DM Mono',monospace;font-size:12px;}
+.hint{font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5;}
+.date-row{display:flex;align-items:center;gap:8px;margin-bottom:.85rem;}
+.date-row input[type=date]{font-size:12px;padding:5px 9px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'DM Mono',monospace;cursor:pointer;}
+.date-row input[type=date]:focus{outline:none;border-color:var(--accent);}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.chip{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:all .15s;}
+.chip:hover{border-color:var(--accent);color:var(--accent2);}
+.btn-row{display:flex;gap:8px;}
+.gen-btn{flex:1;padding:10px;font-size:14px;font-weight:600;border:none;border-radius:var(--rs);background:var(--accent);color:#fff;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:opacity .15s;}
+.gen-btn:hover:not(:disabled){opacity:.85;}
+.gen-btn:disabled{opacity:.4;cursor:not-allowed;}
+.sec-btn{padding:10px 13px;font-size:12px;font-weight:500;border:1px solid var(--border2);border-radius:var(--rs);background:transparent;color:var(--text);cursor:pointer;font-family:'Noto Sans SC',sans-serif;white-space:nowrap;}
+.sec-btn:hover{border-color:var(--accent);}
+.result-wrap{margin-top:.85rem;}
+.result-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:1.1rem;white-space:pre-wrap;font-size:13px;line-height:1.9;color:var(--text);min-height:60px;font-family:'Noto Sans SC',sans-serif;}
+.result-actions{display:flex;gap:6px;margin-top:8px;}
+.copy-btn{font-size:12px;padding:5px 13px;border-radius:var(--rs);border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:'Noto Sans SC',sans-serif;}
+.copy-btn:hover{color:var(--text);}
+.empty{font-size:12px;color:var(--text3);text-align:center;padding:18px 8px;line-height:1.7;}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-size:12px;padding:7px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9999;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);}
+.toast.show{opacity:1;}
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- Model bar -->
+<div class="model-bar">
+  <label>服务商</label>
+  <select class="bar-select" id="provider-sel" onchange="onProviderChange()"></select>
+  <label>模型</label>
+  <select class="bar-select" id="model-sel"></select>
+  <label>API Key</label>
+  <input class="apikey-input" type="password" id="key-input" placeholder="服务端已配置可留空" autocomplete="off"/>
+  <button class="bar-btn" onclick="saveKey()">保存</button>
+  <span id="key-status"></span>
+</div>
+
+<div class="app">
+
+<!-- ── SIDEBAR ── -->
+<div class="sidebar">
+  <div class="sb-top">
+    <div class="sb-logo">Daily Report · RAG</div>
+    <div class="sb-tabs">
+      <button class="sb-tab on" id="tab-import" onclick="setTab('import')">导入</button>
+      <button class="sb-tab" id="tab-lib" onclick="setTab('lib')">任务库</button>
+      <button class="sb-tab" id="tab-ret" onclick="setTab('ret')">检索</button>
+    </div>
+  </div>
+  <div class="sb-body">
+    <!-- Import -->
+    <div id="pane-import">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.6;">粘贴历史日报，自动解析并入库。重复任务自动合并。</div>
+      <textarea class="import-ta" id="import-ta" placeholder="【项目名】
+1、任务名（已完成100%）
+1.步骤描述
+2.步骤描述"></textarea>
+      <button class="parse-btn" onclick="parseAndIndex()">🔍 解析并入库</button>
+      <div class="parse-result" id="parse-result"></div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="stat-n" id="stat-docs">0</div><div class="stat-l">任务文档</div></div>
+        <div class="stat-box"><div class="stat-n" id="stat-proj">0</div><div class="stat-l">项目数</div></div>
+      </div>
+    </div>
+    <!-- Library -->
+    <div id="pane-lib" style="display:none">
+      <input class="lib-search" id="lib-search" placeholder="搜索任务名或项目…" oninput="renderLib()"/>
+      <div id="lib-list"></div>
+    </div>
+    <!-- Retrieval -->
+    <div id="pane-ret" style="display:none">
+      <div class="ret-hint">根据今日任务检索历史库最相似的描述（bigram Jaccard 相似度）。</div>
+      <button class="parse-btn" style="margin-bottom:10px" onclick="previewRet()">🔎 预览检索结果</button>
+      <div id="ret-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="main">
+  <div class="page-title">日报生成器</div>
+  <p class="page-sub">填好今日任务，RAG 自动匹配历史描述，AI 参考生成</p>
+
+  <div class="date-row">
+    <span class="label" style="margin:0;font-size:11px;">日期</span>
+    <input type="date" id="rpt-date"/>
+  </div>
+
+  <div class="card dashed">
+    <div class="label">参考日报风格 <span class="badge badge-a">风格模板</span></div>
+    <textarea class="full-ta mono" id="ref-input" rows="4" placeholder="粘贴一篇历史日报，AI 会模仿其格式与措辞。不填则用默认结构。"></textarea>
+  </div>
+
+  <div class="card">
+    <div class="label">今日工作内容 <span id="rag-badge" class="rag-badge">✦ 已匹配历史描述</span></div>
+    <textarea class="full-ta mono" id="today-input" rows="10"
+      placeholder="格式：项目名 + Tab + 任务名，一行一条&#10;&#10;数据资产沉淀	专利数据月度周期定时获取更新&#10;南平林业	数据核验问题修改"
+      oninput="onTodayInput()"></textarea>
+    <div class="hint">有历史描述的任务自动检索匹配，生成时注入到 prompt 中</div>
+  </div>
+
+  <div class="card">
+    <div class="label">明日计划</div>
+    <textarea class="full-ta" id="tmr-plan" rows="3" placeholder="明天打算做什么…"></textarea>
+  </div>
+
+  <div class="card">
+    <div class="label">遇到的问题 / 风险</div>
+    <textarea class="full-ta" id="issues" rows="2" placeholder="阻塞项、待确认事项…（可留空）"></textarea>
+  </div>
+
+  <div class="card dashed">
+    <div class="label">自定义要求 <span class="badge badge-y">约束偏好</span></div>
+    <textarea class="full-ta" id="req-input" rows="2" placeholder="例如：每条不超过一行、不用加粗、带完成数据量…"></textarea>
+    <div class="chips">
+      <span class="chip" onclick="addReq('语言简洁，每条不超过一行')">简洁一行</span>
+      <span class="chip" onclick="addReq('不要使用加粗或任何 Markdown 格式')">纯文本</span>
+      <span class="chip" onclick="addReq('任务描述需包含操作步骤与完成数据量')">带步骤+数量</span>
+      <span class="chip" onclick="addReq('严格模仿参考日报风格')">仿写风格</span>
+      <span class="chip" onclick="addReq('输出语言改为英文')">英文</span>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="sec-btn" onclick="saveTasksToLib()">💾 保存今日任务</button>
+    <button class="gen-btn" id="gen-btn" onclick="generate()">✦ 生成日报</button>
+  </div>
+
+  <div class="result-wrap" id="result-wrap" style="display:none">
+    <div class="result-box" id="result-box"></div>
+    <div class="result-actions">
+      <button class="copy-btn" onclick="copyResult()">复制全文</button>
+      <button class="copy-btn" onclick="document.getElementById('result-wrap').style.display='none'">收起</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- .app -->
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';  // 同源，空前缀即可
+
+// ── 服务商配置（从后端加载） ──────────────────────────────────
+let _providers = {};
+let _docs = [];
+
+async function initProviders() {
+  try {
+    const r = await fetch(`${API}/api/providers`);
+    _providers = await r.json();
+    const sel = document.getElementById('provider-sel');
+    sel.innerHTML = Object.entries(_providers).map(([k,v]) =>
+      `<option value="${k}">${providerLabel(k)}${v.configured?' ✓':''}</option>`
+    ).join('') + `<option value="custom">自定义</option>`;
+    onProviderChange();
+  } catch(e) { toast('无法连接后端：' + e.message); }
+}
+
+function providerLabel(k) {
+  return {claude:'Claude',deepseek:'DeepSeek',qwen:'通义千问',glm:'智谱 GLM'}[k] || k;
+}
+
+function onProviderChange() {
+  const p = document.getElementById('provider-sel').value;
+  const cfg = _providers[p];
+  const msel = document.getElementById('model-sel');
+  if (cfg) {
+    msel.innerHTML = cfg.models.map(m=>`<option value="${m}">${m}</option>`).join('');
+  } else {
+    msel.innerHTML = '<option value="custom-model">custom-model</option>';
+  }
+  // 加载已保存的 key
+  const saved = localStorage.getItem(`dr-key-${p}`) || '';
+  document.getElementById('key-input').value = saved;
+  updateKeyStatus(p, saved);
+}
+
+function updateKeyStatus(p, key) {
+  const el = document.getElementById('key-status');
+  const serverOk = _providers[p]?.configured;
+  if (serverOk) { el.textContent = '✓ 服务端已配置'; el.className = 'key-ok'; }
+  else if (key) { el.textContent = '✓ 前端已设置'; el.className = 'key-ok'; }
+  else { el.textContent = '未设置'; el.className = 'key-no'; }
+}
+
+function saveKey() {
+  const p = document.getElementById('provider-sel').value;
+  const v = document.getElementById('key-input').value.trim();
+  if (!v) { toast('请输入 API Key'); return; }
+  localStorage.setItem(`dr-key-${p}`, v);
+  localStorage.setItem('dr-last-provider', p);
+  updateKeyStatus(p, v);
+  toast('已保存');
+}
+
+// ── RAG 文档（从后端加载） ────────────────────────────────────
+async function loadDocs() {
+  try {
+    const r = await fetch(`${API}/api/rag/docs`);
+    _docs = await r.json();
+    updateStats();
+    renderLib();
+  } catch(e) { console.error(e); }
+}
+
+function updateStats() {
+  document.getElementById('stat-docs').textContent = _docs.length;
+  document.getElementById('stat-proj').textContent = new Set(_docs.map(d=>d.proj)).size;
+}
+
+// ── 解析并入库 ────────────────────────────────────────────────
+async function parseAndIndex() {
+  const text = document.getElementById('import-ta').value.trim();
+  if (!text) { toast('请先粘贴历史日报'); return; }
+  try {
+    // 1. 后端解析
+    const pr = await fetch(`${API}/api/rag/parse`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    const { docs, count } = await pr.json();
+    if (!count) { toast('未解析到任务，请检查格式'); return; }
+    // 2. 批量入库
+    const ur = await fetch(`${API}/api/rag/docs`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({docs})
+    });
+    const { added, updated, total } = await ur.json();
+    await loadDocs();
+    document.getElementById('parse-result').textContent =
+      `✓ 新增 ${added} 条，补充描述 ${updated} 条，共 ${total} 条`;
+    toast(`入库成功，新增 ${added} 条`);
+  } catch(e) { toast('请求失败：'+e.message); }
+}
+
+// ── 相似度（前端检索，无需 round-trip）──────────────────────────
+function bigrams(s) {
+  const bg=new Set(), t=s.replace(/\s+/g,'');
+  for(let i=0;i<t.length-1;i++) bg.add(t.slice(i,i+2));
+  return bg;
+}
+function jaccard(a,b) {
+  const ba=bigrams(a),bb=bigrams(b);
+  let inter=0;
+  for(const t of ba) if(bb.has(t)) inter++;
+  const u=ba.size+bb.size-inter;
+  return u===0?0:inter/u;
+}
+function retrieve(proj,name,topK=2) {
+  return _docs
+    .map(d=>({...d,score:jaccard(name,d.name)*0.7+jaccard(proj,d.proj)*0.3}))
+    .filter(d=>d.desc&&d.score>0.12)
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,topK);
+}
+
+// ── 解析今日输入 ──────────────────────────────────────────────
+function parseTasks(raw) {
+  return raw.split('\n').map(l=>l.trim()).filter(Boolean).map(line=>{
+    const sep=line.match(/\t|　|  +/);
+    if(sep){const i=line.indexOf(sep[0]);const proj=line.slice(0,i).trim().replace(/^\d+[\.\d]*\s*/,'');const name=line.slice(i+sep[0].length).trim();if(proj&&name)return{proj,name};}
+    return{proj:'其他',name:line.replace(/^\d+[\.\d]*\s*/,'')};
+  }).filter(t=>t.name);
+}
+
+// ── Tabs ──────────────────────────────────────────────────────
+function setTab(t) {
+  ['import','lib','ret'].forEach(id=>{
+    document.getElementById('tab-'+id).className='sb-tab'+(t===id?' on':'');
+    document.getElementById('pane-'+id).style.display=t===id?'':'none';
+  });
+  if(t==='lib') renderLib();
+}
+
+// ── 任务库渲染 ────────────────────────────────────────────────
+function renderLib() {
+  const kw=(document.getElementById('lib-search')||{value:''}).value.trim().toLowerCase();
+  const el=document.getElementById('lib-list');
+  const filtered=_docs.filter(d=>!kw||(d.name+d.proj).toLowerCase().includes(kw));
+  if(!filtered.length){el.innerHTML='<div class="empty">库中暂无任务<br/>在「导入」tab 粘贴历史日报</div>';return;}
+  const groups={};
+  for(const d of filtered){if(!groups[d.proj])groups[d.proj]=[];groups[d.proj].push(d);}
+  el.innerHTML=Object.entries(groups).map(([proj,docs])=>`
+    <div class="proj-label">${proj}</div>
+    ${docs.map(d=>`
+      <div class="doc-card" id="dc-${d.id}" onclick="toggleDoc('${d.id}')">
+        <div class="doc-name">${d.name}</div>
+        <div class="doc-meta">${d.desc?'✓ 有描述':'○ 无描述'}</div>
+        <div class="doc-desc" id="dd-${d.id}">${d.desc||'（暂无描述）'}
+          <div class="doc-actions">
+            <button class="mini-btn" onclick="event.stopPropagation();editDoc('${d.id}')">编辑</button>
+            <button class="mini-btn danger" onclick="event.stopPropagation();deleteDoc('${d.id}')">删除</button>
+          </div>
+        </div>
+      </div>`).join('')}`).join('');
+}
+
+function toggleDoc(id){document.getElementById('dc-'+id).classList.toggle('open');}
+
+function editDoc(id) {
+  const d=_docs.find(x=>x.id===id);if(!d)return;
+  const dd=document.getElementById('dd-'+id);
+  if(dd.querySelector('.edit-ta'))return;
+  dd.innerHTML=`<textarea class="edit-ta" id="eta-${id}" rows="6">${d.desc||''}</textarea>
+    <div class="doc-actions">
+      <button class="mini-btn" onclick="event.stopPropagation();renderLib()">取消</button>
+      <button class="mini-btn" onclick="event.stopPropagation();saveDesc('${id}')">保存</button>
+    </div>`;
+}
+
+async function saveDesc(id) {
+  const ta=document.getElementById('eta-'+id);if(!ta)return;
+  try{
+    await fetch(`${API}/api/rag/docs/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({desc:ta.value.trim()})});
+    await loadDocs();toast('已保存 ✓');
+  }catch(e){toast('保存失败：'+e.message);}
+}
+
+async function deleteDoc(id) {
+  if(!confirm('确认删除？'))return;
+  try{await fetch(`${API}/api/rag/docs/${id}`,{method:'DELETE'});await loadDocs();toast('已删除');}
+  catch(e){toast('删除失败');}
+}
+
+// ── 检索预览 ──────────────────────────────────────────────────
+function previewRet() {
+  const raw=document.getElementById('today-input').value.trim();
+  const el=document.getElementById('ret-list');
+  if(!raw){el.innerHTML='<div class="empty">请先填写今日任务</div>';return;}
+  const tasks=parseTasks(raw);
+  el.innerHTML=tasks.map(({proj,name})=>{
+    const hits=retrieve(proj,name,2);
+    return`<div class="ret-item">
+      <div class="ret-query">${proj} · ${name}</div>
+      ${hits.length?hits.map(h=>`
+        <div style="margin-top:5px">
+          <span class="ret-match">${h.proj} · ${h.name}</span><span class="ret-score">${(h.score*100).toFixed(0)}%</span>
+          <div class="score-bar"><div class="score-fill" style="width:${Math.min(h.score*100,100)}%"></div></div>
+          <div class="ret-desc">${h.desc.slice(0,100)}${h.desc.length>100?'…':''}</div>
+        </div>`).join('')
+      :'<div style="font-size:11px;color:var(--text3);margin-top:4px">无匹配</div>'}
+    </div>`;
+  }).join('');
+}
+
+// ── RAG badge ─────────────────────────────────────────────────
+function onTodayInput() {
+  const raw=document.getElementById('today-input').value.trim();
+  const badge=document.getElementById('rag-badge');
+  const matched=raw&&_docs.length&&parseTasks(raw).some(({proj,name})=>retrieve(proj,name,1).length>0);
+  badge.style.display=matched?'inline-flex':'none';
+}
+
+// ── 保存今日任务到库 ──────────────────────────────────────────
+async function saveTasksToLib() {
+  const raw=document.getElementById('today-input').value.trim();
+  if(!raw){toast('今日任务为空');return;}
+  const tasks=parseTasks(raw);
+  const date=document.getElementById('rpt-date').value;
+  try{
+    const r=await fetch(`${API}/api/rag/docs`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({docs:tasks.map(t=>({...t,desc:'',date}))})});
+    const{added}=await r.json();
+    await loadDocs();
+    toast(added>0?`新增 ${added} 条，可在「任务库」补充描述`:'任务已在库中');
+  }catch(e){toast('保存失败：'+e.message);}
+}
+
+// ── 自定义要求 ────────────────────────────────────────────────
+function addReq(t){const ta=document.getElementById('req-input');ta.value=ta.value.trim()?ta.value.trim()+'\n'+t:t;}
+
+// ── 生成（调后端流式接口）────────────────────────────────────
+async function generate() {
+  const todayRaw=document.getElementById('today-input').value.trim();
+  if(!todayRaw){alert('请填写今日工作内容');return;}
+
+  const provider=document.getElementById('provider-sel').value;
+  const model=document.getElementById('model-sel').value;
+  const apiKey=document.getElementById('key-input').value.trim();
+  const ref=document.getElementById('ref-input').value.trim();
+  const tmr=document.getElementById('tmr-plan').value.trim();
+  const issues=document.getElementById('issues').value.trim();
+  const req=document.getElementById('req-input').value.trim();
+  const date=document.getElementById('rpt-date').value;
+
+  // RAG 检索
+  const tasks=parseTasks(todayRaw);
+  const ragCtx=[];
+  for(const{proj,name}of tasks){const hits=retrieve(proj,name,2);if(hits.length)ragCtx.push({proj,name,hits});}
+
+  // 构建 prompt
+  let prompt=`请根据以下内容帮我生成工作日报：\n\n【日期】${date}\n\n`;
+  if(ref)prompt+=`【参考日报风格（严格模仿此风格、格式与措辞习惯）】\n${ref}\n\n`;
+  if(ragCtx.length){
+    prompt+=`【RAG检索结果：历史任务描述参考（请优先复用，数据量按实际调整）】\n`;
+    for(const{proj,name,hits}of ragCtx){
+      prompt+=`▶ 当前任务：[${proj}] ${name}\n`;
+      hits.forEach((h,i)=>{prompt+=`  参考${i+1}（相似度${(h.score*100).toFixed(0)}%）：[${h.proj}] ${h.name}\n${h.desc}\n`;});
+      prompt+='\n';
+    }
+  }
+  prompt+=`【今日工作原始记录】\n${todayRaw}\n\n`;
+  prompt+=`【明日计划】\n${tmr||'（未填写）'}\n\n`;
+  prompt+=`【遇到的问题/风险】\n${issues||'无'}\n\n`;
+  prompt+=`【额外要求与约束】\n`;
+  if(ref)prompt+=`- 严格参照参考日报的风格、分段方式、措辞习惯进行仿写\n`;
+  else prompt+=`- 按【今日完成】【明日计划】【问题/风险】三段输出，今日完成按模块归类编号\n`;
+  if(ragCtx.length)prompt+=`- 有RAG历史描述的任务，直接参考复用其描述步骤，保持表述一致性\n`;
+  if(req)req.split('\n').filter(Boolean).forEach(r=>{prompt+=`- ${r}\n`;});
+  prompt+=`- 直接输出日报正文，不要任何多余说明`;
+
+  const btn=document.getElementById('gen-btn');
+  const wrap=document.getElementById('result-wrap');
+  const box=document.getElementById('result-box');
+  btn.disabled=true;btn.textContent='生成中…';
+  wrap.style.display='block';box.textContent='';
+
+  try{
+    const resp=await fetch(`${API}/api/generate`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({provider,model,prompt,api_key:apiKey||undefined})
+    });
+    if(!resp.ok){const e=await resp.json();throw new Error(e.detail||resp.statusText);}
+    const reader=resp.body.getReader();
+    const dec=new TextDecoder();
+    let out='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      for(const line of dec.decode(value).split('\n')){
+        if(!line.startsWith('data:'))continue;
+        const data=line.slice(5).trim();if(data==='[DONE]')break;
+        try{const j=JSON.parse(data);if(j.error)throw new Error(j.error);if(j.text){out+=j.text;box.textContent=out;}}catch(e){if(e.message!=='')throw e;}
+      }
+    }
+  }catch(e){box.textContent='生成失败：'+e.message;}
+
+  btn.disabled=false;btn.textContent='✦ 重新生成';
+}
+
+function copyResult(){
+  navigator.clipboard.writeText(document.getElementById('result-box').textContent).then(()=>toast('已复制 ✓'));
+}
+
+// ── Toast ──────────────────────────────────────────────────────
+function toast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+document.getElementById('rpt-date').value=new Date().toISOString().slice(0,10);
+(async()=>{
+  await initProviders();
+  // 恢复上次选择的服务商
+  const lp=localStorage.getItem('dr-last-provider');
+  if(lp){const sel=document.getElementById('provider-sel');if([...sel.options].find(o=>o.value===lp)){sel.value=lp;onProviderChange();}}
+  await loadDocs();
+})();
+</script>
+</body>
+</html>
