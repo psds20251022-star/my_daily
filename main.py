@@ -129,6 +129,11 @@ async def generate(req: GenerateRequest):
 
     url = req.custom_url if req.provider == "custom" else (cfg["url"] if cfg else "")
     fmt = cfg["format"] if cfg else "openai"
+    if req.provider == "custom" and not (url or "").strip():
+        raise HTTPException(
+            400,
+            "自定义服务商需要在请求中提供 custom_url，或改用已内置的服务商",
+        )
 
     async def stream_anthropic():
         headers = {

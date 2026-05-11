@@ -231,6 +231,20 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text
 <script>
 const API = '';  // 同源，空前缀即可
 
+/** 非 JSON 错误正文（如 Internal Server Error）时避免 JSON.parse 抛错 */
+async function readErrorMessage(resp) {
+  const txt = await resp.text();
+  try {
+    const e = JSON.parse(txt);
+    if (typeof e.detail === 'string') return e.detail;
+    if (Array.isArray(e.detail))
+      return e.detail.map(x => (x.msg != null ? x.msg : JSON.stringify(x))).join('; ');
+    if (e.detail != null) return String(e.detail);
+  } catch { /* 非 JSON */ }
+  const s = (txt && txt.trim()) ? txt : resp.statusText;
+  return s.length > 500 ? s.slice(0, 500) + '…' : s;
+}
+
 // ── 服务商配置（从后端加载） ──────────────────────────────────
 let _providers = {};
 let _docs = [];
@@ -238,6 +252,7 @@ let _docs = [];
 async function initProviders() {
   try {
     const r = await fetch(`${API}/api/providers`);
+    if (!r.ok) throw new Error(await readErrorMessage(r));
     _providers = await r.json();
     const sel = document.getElementById('provider-sel');
     sel.innerHTML = Object.entries(_providers).map(([k,v]) =>
@@ -288,6 +303,7 @@ function saveKey() {
 async function loadDocs() {
   try {
     const r = await fetch(`${API}/api/rag/docs`);
+    if (!r.ok) throw new Error(await readErrorMessage(r));
     _docs = await r.json();
     updateStats();
     renderLib();
@@ -309,6 +325,7 @@ async function parseAndIndex() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({text})
     });
+    if (!pr.ok) throw new Error(await readErrorMessage(pr));
     const { docs, count } = await pr.json();
     if (!count) { toast('未解析到任务，请检查格式'); return; }
     // 2. 批量入库
@@ -316,6 +333,7 @@ async function parseAndIndex() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({docs})
     });
+    if (!ur.ok) throw new Error(await readErrorMessage(ur));
     const { added, updated, total } = await ur.json();
     await loadDocs();
     document.getElementById('parse-result').textContent =
@@ -450,6 +468,7 @@ async function saveTasksToLib() {
   const date=document.getElementById('rpt-date').value;
   try{
     const r=await fetch(`${API}/api/rag/docs`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({docs:tasks.map(t=>({...t,desc:'',date}))})});
+    if (!r.ok) throw new Error(await readErrorMessage(r));
     const{added}=await r.json();
     await loadDocs();
     toast(added>0?`新增 ${added} 条，可在「任务库」补充描述`:'任务已在库中');
@@ -511,7 +530,7 @@ async function generate() {
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({provider,model,prompt,api_key:apiKey||undefined})
     });
-    if(!resp.ok){const e=await resp.json();throw new Error(e.detail||resp.statusText);}
+    if(!resp.ok)throw new Error(await readErrorMessage(resp));
     const reader=resp.body.getReader();
     const dec=new TextDecoder();
     let out='';
